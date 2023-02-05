@@ -101,13 +101,13 @@ func CopyFile(dst, src string) error {
 	sourceFileStat, err := os.Stat(src)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("file not exists")
+			return fmt.Errorf("file '%s' not exists", src)
 		}
 		return err
 	}
 
 	if !sourceFileStat.Mode().IsRegular() {
-		return fmt.Errorf("not a regular file")
+		return fmt.Errorf("file '%s' is not a regular file", src)
 	}
 
 	source, err := os.Open(src)
@@ -145,5 +145,5 @@ func CreateDir(path string) error {
 	if stat.IsDir() {
 		return nil
 	}
-	return fmt.Errorf("path is not directory")
+	return fmt.Errorf("path '%s' is not directory", path)
 }
