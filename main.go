@@ -225,7 +225,7 @@ func pack(dirPath, filePath, outputDirPath string) {
 		var sb strings.Builder
 		sb.WriteString("@echo off\r\n")
 		for _, path := range diffList.Redundant {
-			sb.WriteString(fmt.Sprintf("del %s\r\n", filepath.FromSlash(path)))
+			sb.WriteString(fmt.Sprintf("del /f \"%s\"\r\n", filepath.FromSlash(path)))
 		}
 		writeFilePath := filepath.Join(outputDirPath, fileName)
 		if notExist, _ := PathNotExist(writeFilePath); !notExist {
