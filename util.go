@@ -15,135 +15,151 @@ func GetSerializablePath(dirPath, filePath string) string {
 	return filepath.ToSlash(strings.TrimPrefix(strings.TrimPrefix(filePath, dirPath), string(filepath.Separator)))
 }
 
-func PathNotExist(path string) (notExist bool, isDir bool) {
+func GetFromSerializablePath(path string) string {
+	return filepath.FromSlash(path)
+}
+
+func CheckPathNotExists(path string) (notExist bool, isDir bool, err error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		notExist = os.IsNotExist(err)
+		if notExist {
+			return true, true, nil
+		}
+		err = fmt.Errorf("failed to get info of path '%s': %w", path, err)
+		return
+	}
+	return false, info.IsDir(), nil
+}
+
+func CheckDirectoryExists(path string) (exist bool, err error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		notExist := os.IsNotExist(err)
 		if notExist {
-			return true, true
+			return false, nil
 		}
-		panic("check path '" + path + "' failed: " + err.Error())
+		err = fmt.Errorf("failed to get info of path '%s': %w", path, err)
+		return
 	}
-	return false, info.IsDir()
+	return info.IsDir(), nil
 }
 
-func DirectoryExist(path string) bool {
+func CheckFileExists(path string) (exist bool, err error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		notExist := os.IsNotExist(err)
 		if notExist {
-			return false
+			return false, nil
 		}
-		panic("check path '" + path + "' failed: " + err.Error())
+		err = fmt.Errorf("failed to get info of path '%s': %w", path, err)
+		return
 	}
-	return info.IsDir()
+	return !info.IsDir(), nil
 }
 
-func FileExist(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		notExist := os.IsNotExist(err)
-		if notExist {
-			return false
-		}
-		panic("check path '" + path + "' failed: " + err.Error())
-	}
-	return !info.IsDir()
-}
-
-func HashFileSHA1(path string) string {
+func HashFileSHA1(path string) (result string, err error) {
 	h := sha1.New()
 	f, err := os.Open(path)
 	if err != nil {
-		panic("open path '" + path + "' failed: " + err.Error())
+		err = fmt.Errorf("failed to open '%s': %w", path, err)
+		return
 	}
 	defer func() {
 		_ = f.Close()
 	}()
 	_, err = io.Copy(h, f)
 	if err != nil {
-		panic("read path '" + path + "' failed: " + err.Error())
+		err = fmt.Errorf("failed to read '%s': %w", path, err)
+		return
 	}
-	return hex.EncodeToString(h.Sum(nil))
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func CompareFileSHA1(path, sha1Str string) (exist bool, match bool) {
-	if _, err := os.Stat(path); err != nil {
+func CompareFileSHA1(path, sha1Str string) (exist bool, match bool, err error) {
+	if _, err = os.Stat(path); err != nil {
 		notExist := os.IsNotExist(err)
 		if notExist {
-			return false, false
+			return false, false, nil
 		}
-		panic("check path '" + path + "' failed: " + err.Error())
+		err = fmt.Errorf("failed to get info of path '%s': %w", path, err)
+		return
 	}
 	sha1Byte, err := hex.DecodeString(sha1Str)
 	if err != nil {
-		panic("path '" + path + "' SHA1 value '" + sha1Str + "' is invalid")
+		err = fmt.Errorf("SHA1 value '%s' of path '%s' is invalid", sha1Str, path)
+		return
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		panic("open path '" + path + "' failed: " + err.Error())
+		err = fmt.Errorf("failed to open '%s': %w", path, err)
+		return
 	}
-	defer func() {
-		_ = f.Close()
-	}()
+	defer omitError(f.Close)
 	h := sha1.New()
 	_, err = io.Copy(h, f)
 	if err != nil {
-		panic("read path '" + path + "' failed: " + err.Error())
+		err = fmt.Errorf("failed to read '%s': %w", path, err)
+		return
 	}
-	if bytes.Compare(h.Sum(nil), sha1Byte) == 0 {
-		return true, true
-	}
-	return true, false
+	return true, bytes.Compare(h.Sum(nil), sha1Byte) == 0, nil
 }
 
-func CopyFile(dst, src string) error {
+func CopyFileWithPath(dst, src string) error {
 	sourceFileStat, err := os.Stat(src)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("file '%s' not exists", src)
 		}
-		return err
+		return fmt.Errorf("failed to get info of path '%s': %w", src, err)
 	}
 
 	if !sourceFileStat.Mode().IsRegular() {
-		return fmt.Errorf("file '%s' is not a regular file", src)
+		return fmt.Errorf("path '%s' is not a regular file", src)
 	}
 
 	source, err := os.Open(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open '%s': %w", src, err)
 	}
-	defer func() {
-		_ = source.Close()
-	}()
+	defer omitError(source.Close)
 
-	err = CreateDir(filepath.Dir(dst))
+	dir := filepath.Dir(dst)
+	err = CreateDir(dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create directory '%s': %w", dir, err)
 	}
 	destination, err := os.Create(dst)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create file '%s': %w", dst, err)
 	}
-	defer func() {
-		_ = destination.Close()
-	}()
+	defer omitError(destination.Close)
 
 	_, err = io.Copy(destination, source)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to copy file '%s' to '%s': %w", src, dst, err)
+	}
+	return nil
 }
 
 func CreateDir(path string) error {
 	stat, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return os.MkdirAll(path, os.ModePerm)
+			err = os.MkdirAll(path, os.ModePerm)
+			if err != nil {
+				return fmt.Errorf("failed to mkdir '%s': %w", path, err)
+			}
+			return nil
 		}
-		return err
+		return fmt.Errorf("failed to get info of path '%s': %w", path, err)
 	}
 	if stat.IsDir() {
 		return nil
 	}
-	return fmt.Errorf("path '%s' is not directory", path)
+	return fmt.Errorf("path '%s' is not a directory", path)
+}
+
+func omitError(f func() error) {
+	_ = f()
 }

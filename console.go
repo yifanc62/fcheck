@@ -18,5 +18,5 @@ func PrintStatus(isSuccess bool, label, path string) {
 		colorFunc = successColorFunc
 	}
 	colorFunc("[%s]", label)
-	fmt.Println(strings.Repeat(" ", 10-len(label)), path)
+	fmt.Println(strings.Repeat(" ", maxLabelLength+1-len(label)), path)
 }
